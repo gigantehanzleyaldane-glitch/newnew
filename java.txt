@@ -1,0 +1,273 @@
+console.log("RUN");
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm"
+const supabaseUrl = "https://yrypvjywiwjxcqdofwta.supabase.co"
+const supabaseKey = "sb_publishable_cBCBvmcNfUiXatltBOTciQ_IzVeMFXu"
+const supabase = createClient(supabaseUrl, supabaseKey)
+
+console.log("Supabase connected:", supabase);
+alert("JavaScript loaded successfully!");
+
+let username = "";
+let question = [];
+let score = 0;
+let current = 0;
+let currentQuizCode = "";
+
+function firstbutton() {
+    console.log("firstbutton() called");
+    username = document.getElementById("input").value
+    console.log("Username:", username);
+    let first = document.getElementById("container");
+    first.style.display = "none";
+    
+    if (username === "") {
+        alert("Invalid Username");
+        return;
+    }
+    
+    let secondDesign = document.getElementById("second-design");
+    secondDesign.textContent = `Welcome, ${username}`;
+    secondDesign.style.fontFamily="Times New Roman', Times, serif"
+    showpage('second');
+    alert("Welcome screen loaded!");
+}
+
+function showpage(id) {
+    console.log("showpage() called with id:", id);
+    let currentP = document.querySelector(".page.active");
+    if (currentP) {
+        currentP.classList.remove("active");
+        console.log("Removed active class from:", currentP.id);
+    }
+    let n = document.getElementById(id);
+    if (n) {
+        setTimeout(() => {
+            n.classList.add("active");
+            console.log("Added active class to:", id);
+        }, 20);
+    } else {
+        console.error("Page not found:", id);
+    }
+}
+
+async function addquestion() {
+    console.log("addquestion() called");
+    let a = document.getElementById("teacher-question").value;
+    let choices = [
+        document.getElementById("teacher-option-0").value,
+        document.getElementById("teacher-option-1").value,
+        document.getElementById("teacher-option-2").value,
+        document.getElementById("teacher-option-3").value,
+    ];
+    let correct = document.querySelector("input[name=option]:checked")
+    
+    console.log("Question:", a);
+    console.log("Choices:", choices);
+    console.log("Correct answer:", correct ? correct.value : "none selected");
+    
+    if (!a || choices.some(c => !c) || !correct) {
+        alert("Please fill all fields and select the correct answer.");
+        return;
+    }
+
+    question.push({
+        question: a,
+        choice: choices,
+        answer: parseInt(correct.value)
+    });
+
+    console.log("Total questions now:", question.length);
+    console.log("All questions:", question);
+
+    document.getElementById("teacher-question").value = "";
+    document.getElementById("teacher-option-0").value = "";
+    document.getElementById("teacher-option-1").value = "";
+    document.getElementById("teacher-option-2").value = "";
+    document.getElementById("teacher-option-3").value = "";
+    correct.checked = false;
+
+    alert(`Question added! Total questions: ${question.length}`);
+}
+
+async function saveQuiz() {
+    console.log("saveQuiz() called");
+    const quizCode = document.getElementById("quiz-code").value;
+    console.log("Quiz code:", quizCode);
+    console.log("Questions to save:", question);
+    
+    if (!quizCode) {
+        alert("Enter a quiz code");
+        return;
+    }
+    if (question.length === 0) {
+        alert("Add at least one question");
+        return;
+    }
+    
+    alert("Attempting to save to Supabase...");
+    
+    try {
+        const { data, error } = await supabase
+            .from("Onato")
+            .insert({
+                code: quizCode,
+                questions: question,
+                name:username
+
+            });
+        
+        console.log("Supabase response:", { data, error });
+        
+        if (error) {
+            console.error("Supabase error:", error);
+            alert("Error saving quiz: " + error.message);
+        } else {
+            console.log("Quiz saved successfully!");
+            alert("Quiz saved! Code: " + quizCode);
+        }
+    } catch (err) {
+        console.error("Catch error:", err);
+        alert("Unexpected error: " + err.message);
+    }
+}
+
+async function joinRoom() {
+    console.log("joinRoom() called");
+    const roomCode = document.getElementById("student-type-code").value;
+    console.log("Room code entered:", roomCode);
+    
+    if (!roomCode) {
+        alert("Please enter a room code");
+        return;
+    }
+
+    alert("Searching for quiz with code: " + roomCode);
+
+    try {
+        const { data, error } = await supabase
+            .from("Onato")
+            .select("questions")
+            .eq("code", roomCode)
+            .single();
+
+        console.log("Supabase fetch response:", { data, error });
+
+        if (error || !data) {
+            console.error("Quiz not found or error:", error);
+            alert("Quiz not found! Check the code. Error: " + (error ? error.message : "No data"));
+            return;
+        }
+
+        console.log("Quiz found! Questions:", data.questions);
+        question = data.questions;
+        currentQuizCode = roomCode;
+        score = 0;
+        current = 0;
+        
+        alert("Quiz loaded! Starting now...");
+        showpage("Quiz-area");
+        Showquiz();
+    } catch (err) {
+        console.error("Catch error:", err);
+        alert("Unexpected error: " + err.message);
+    }
+}
+
+function start() {
+    console.log("start() called");
+    console.log("Current questions:", question);
+    
+    if (question.length === 0) {
+        alert("Please add questions first!");
+        return;
+    }
+    score = 0;
+    current = 0;
+    alert("Starting quiz with " + question.length + " questions");
+    showpage("Quiz-area");
+    Showquiz();
+}
+
+async function saveScore() {
+    console.log("saveScore() called");
+    console.log("Saving score for:", username, "Quiz:", currentQuizCode, "Score:", score);
+    
+    try {
+        
+        const { error: updateError } = await supabase
+            .from("Onato")
+            .update({ QuizResult: score })
+            .eq("code", currentQuizCode);
+        
+        console.log("Score save response:", { updateError });
+        
+        if (updateError) {
+            console.error("Error saving score:", updateError);
+            alert("Score couldn't be saved: " + updateError.message);
+        } else {
+            console.log("Score saved successfully!");
+            alert("Your score has been saved!");
+        }
+    } catch (err) {
+        console.error("Catch error saving score:", err);
+        alert("Unexpected error: " + err.message);
+    }
+}
+
+function Showquiz() {
+    console.log("Showquiz() called, current question:", current);
+    
+    if (current >= question.length) {
+        console.log("Quiz finished! Score:", score);
+        
+    
+        saveScore();
+        
+        let quizzz = document.getElementById("Quiz-area").innerHTML =
+            `<div class="onat" style="text-align:center; padding: 20px; margin-top: 250px; font-size: 24px; color: Black; font-family: tahoma;">
+        <h3>Quiz Finished!</h3>
+        <p><strong>${username}</strong>, your score: ${score}/${question.length}</p>
+        <p style="font-size: 18px; color: green; margin-top: 20px;">✅ Score saved to database!</p>
+        </div>`;
+        
+        alert(`Quiz finished! Your score: ${score}/${question.length}`);
+        return;
+    }
+
+    let q = question[current];
+    console.log("Displaying question:", q);
+    
+    let otano = `<div class="quizbox"><h3>${q.question}</h3>`;
+    q.choice.forEach((element, i) => {
+        otano += `<button class="choicebtn" onclick="checking(${i})">${element}</button><br>`;
+    });
+    otano += `</div>`;
+    document.getElementById("Quiz-area").style.display = "block";
+    document.getElementById("Quiz-area").innerHTML = otano;
+}
+
+function checking(selected) {
+    console.log("checking() called with answer:", selected);
+    console.log("Correct answer:", question[current].answer);
+    
+    if (selected === question[current].answer) {
+        score += 1;
+        console.log("Correct! Score:", score);
+    } else {
+        console.log("Wrong!");
+    }
+    
+    current += 1;
+    Showquiz();
+}
+
+
+window.firstbutton = firstbutton;
+window.showpage = showpage;
+window.addquestion = addquestion;
+window.saveQuiz = saveQuiz;
+window.joinRoom = joinRoom;
+window.start = start;
+window.checking = checking;
+
+console.log("All functions loaded to window object");
